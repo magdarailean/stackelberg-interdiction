@@ -1,23 +1,37 @@
-"""Paired evaluation on held-out synthetic days."""
+"""Paired policy evaluation on independent synthetic days."""
+from functools import lru_cache
 from random import Random
 from statistics import mean, quantiles
 
-import networkx as nx
-
 from .defender import Plan
-from .follower import delivered_flow
+from .follower import Edge
 from .scenarios import Day
 
-def daily_flow(graph: nx.DiGraph, day: Day, plan: Plan) -> float:
-    """Sum the two independent hourly follower responses."""
-    total = 0.0
-    for t, slot in enumerate(day):
-        available = graph.copy()
-        for edge in slot.closed:
-            available.edges[edge]["capacity"] = 0
-        total += delivered_flow(available, slot.supply, slot.demand,
-                                (e for hour, e in plan if hour == t))
-    return total
+
+class Sample:
+    """Cache slot responses shared by different schedules on this split."""
+
+    def __init__(self, days: tuple[Day, ...], factor: float = 0.3):
+        if not days or not 0 < factor <= 1:
+            raise ValueError("Expected days and a factor in (0,1]")
+        self.days = days
+        self.factor = factor
+
+        @lru_cache(maxsize=65536)
+        def hourly(i: int, t: int, edges: frozenset[Edge]) -> float:
+            return days[i][t].delivered(edges, factor)
+
+        self.hourly = hourly
+
+    def flows(self, plan: Plan) -> list[float]:
+        """Compute each day's total delivery."""
+        return [sum(self.hourly(i, t, frozenset(e for h, e in plan if h == t))
+                    for t in range(len(day))) for i, day in enumerate(self.days)]
+
+    def mean(self, plan: Plan) -> float:
+        """Return equally weighted mean daily delivery."""
+        return mean(self.flows(plan))
+
 
 def interval(values: list[float], seed: int) -> tuple[float, float, float]:
     """Approximate 95% percentile bootstrap interval over independent days."""
