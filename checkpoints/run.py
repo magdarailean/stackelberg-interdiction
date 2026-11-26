@@ -1,36 +1,23 @@
-"""Run with python -m checkpoints.run."""
-from statistics import mean
+import argparse
+import json
 
-from .defender import Plan, feasible_plans, greedy, random_feasible
-from .evaluate import daily_flow, interval
-from .network import toy_graph
+from .defender import Rules
+from .evaluate import Sample
+from .experiment import experiment
+from .network import SITES, toy_graph
 from .scenarios import generate
 
+
 def main() -> None:
-    """Fit on 30 days and compare frozen policies on 20 shifted days."""
-    seed = 42
-    graph = toy_graph()
-    train = generate(30, seed, 0.05)
-    test = generate(20, seed + 1, 0.15)
-    plans = feasible_plans()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--slots", type=int, default=4)
+    args = parser.parse_args()
+    rules = Rules(tuple(SITES[:3] if t % 2 == 0 else SITES[1:] for t in range(args.slots)),
+                  same_origin=True)
+    train = Sample(generate(30, 42, 0.05, args.slots))
+    test = Sample(generate(20, 43, 0.15, args.slots))
+    print(json.dumps(experiment(train, {"shifted_test": test}, rules, toy_graph(), 42, 10), indent=2))
 
-    def score(plan: Plan) -> float:
-        """Mean daily delivery on training scenarios."""
-        return mean(daily_flow(graph, day, plan) for day in train)
-
-    fitted = greedy(plans, score)
-    observations = {"none": [], "random": [], "greedy": []}
-    for i, day in enumerate(test):
-        draw = random_feasible(plans, seed + 100 + i)
-        for name, schedule in (("none", frozenset()), ("random", draw), ("greedy", fitted)):
-            observations[name].append(daily_flow(graph, day, schedule))
-    print("policy    mean delivery [95% CI]     gain over greedy [95% CI]")
-    for name, values in observations.items():
-        gain = [g - v for g, v in zip(observations["greedy"], values)]
-        avg, lo, hi = interval(values, seed)
-        diff, lower, upper = interval(gain, seed)
-        print(f"{name:8} {avg:6.2f} [{lo:.2f}, {hi:.2f}]     "
-              f"{diff:6.2f} [{lower:.2f}, {upper:.2f}]")
 
 if __name__ == "__main__":
     main()

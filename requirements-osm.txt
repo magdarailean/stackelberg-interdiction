@@ -1,0 +1,2 @@
+# Optional data-ingestion dependency; core application still needs only requirements.txt.
+osmium==4.3.2
