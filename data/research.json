@@ -6,6 +6,16 @@
   "contamination": 0.2,
   "shift_levels": [0, 0.5, 1],
   "validation_seed_offsets": [101, 202, 303, 404, 505],
+  "interception_validation_offsets": [0, 17, 37, 59, 83, 109, 137, 167, 199, 233],
+  "interception_train_days": 10,
+  "interception_test_days": 6,
+  "interception_time_limit": 3,
+  "interception_max_iterations": 50,
+  "interception_regimes": [
+    {"name": "baseline", "processing_per_crew_hour": 3, "detection_probability": 0.25},
+    {"name": "high_detection", "processing_per_crew_hour": 6, "detection_probability": 0.6},
+    {"name": "high_capacity", "processing_per_crew_hour": 15, "detection_probability": 0.6}
+  ],
   "processing_per_crew_hour": 3,
   "detection_probability": 0.25,
   "detection_sweep": [0.1,0.25,0.4,0.6],

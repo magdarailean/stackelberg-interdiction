@@ -47,6 +47,8 @@ class StudyTest(unittest.TestCase):
                 self.assertLessEqual(point["civilian_delay"],point["delay_cap"])
             self.assertIn(result["selected_alpha"],result["assumptions"]["study"]["alpha_candidates"])
             self.assertEqual(len(result["heldout_replication"]["heldout"]),5)
+            self.assertEqual(result["interception_first_validation"]["status"],"skipped")
+            self.assertGreaterEqual(len(result["assumptions"]["study"]["interception_validation_offsets"]),10)
             self.assertTrue(result["complete_schedule_set"])
             self.assertAlmostEqual(result["proofs"]["training"]["upper"],result["proofs"]["training"]["lower"])
             for row in result["measured"]:
