@@ -10,6 +10,16 @@ from scripts.build_osm import build
 
 
 class RoadTest(unittest.TestCase):
+    def test_snapshot_checksum_rejects_modified_graph(self):
+        from checkpoints.snapshot import inspect_snapshot
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            metadata = build(Path("data/fictional_roads.osm.xml"),output)
+            self.assertEqual(inspect_snapshot(output)["directed_edges"],5)
+            with (output/metadata["graphml"]).open("ab") as graph:
+                graph.write(b"\n")
+            with self.assertRaisesRegex(ValueError,"SHA-256"):
+                inspect_snapshot(output)
     def test_core_import_does_not_load_optional_geo_packages(self):
         import checkpoints.study  # noqa: F401
         self.assertNotIn("osmium", sys.modules)

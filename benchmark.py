@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 
 from checkpoints.defender import Rules
 from checkpoints.evaluate import Sample
@@ -27,7 +28,8 @@ def run(rows: int, columns: int, budget: int, seed: int, train_count: int,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Grid benchmark for time-indexed checkpoint schedules.')
-    parser.add_argument("--network", choices=("grid", "regional"), default="grid")
+    parser.add_argument("--network", choices=("grid", "regional", "corridor"), default="grid")
+    parser.add_argument("--corridor-dir", type=Path, default=Path("data/corridor"))
     parser.add_argument("--planner", choices=("single", "coalition"), default="single")
     parser.add_argument("--rows", type=int, default=6)
     parser.add_argument("--columns", type=int, default=8)
@@ -41,6 +43,10 @@ def main() -> None:
     parser.add_argument("--shift", type=int, default=1)
     parser.add_argument("--factor", type=float, default=0.3)
     args = parser.parse_args()
+    if args.network == "corridor":
+        from checkpoints.snapshot import inspect_snapshot
+        print(json.dumps(inspect_snapshot(args.corridor_dir),indent=2))
+        return
     if min(args.rows, args.columns) < 2 or min(args.train, args.test) < 1:
         parser.error("The grid needs at least two rows and columns, and each split needs a scenario.")
     if args.budget < 0 or not 0 < args.time_limit < float("inf"):

@@ -681,6 +681,8 @@ def study(args: argparse.Namespace) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--network", choices=("regional", "corridor"), default="regional")
+    parser.add_argument("--corridor-dir", type=Path, default=Path("data/corridor"))
     parser.add_argument("--output", type=Path, default=Path("."))
     parser.add_argument("--planner", choices=("single", "coalition"), default="single")
     parser.add_argument("--large", action="store_true")
@@ -696,6 +698,11 @@ def main() -> None:
     parser.add_argument("--time-limit", type=float, default=10)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+    if args.network == "corridor":
+        from .snapshot import inspect_snapshot
+        print(json.dumps(inspect_snapshot(args.corridor_dir),indent=2))
+        return
+    del args.network, args.corridor_dir
     preset = config()["large"] if args.large else dict(slots=4,budget=4)
     for key in ("slots","budget","delay_cap"):
         if getattr(args,key) is None:
