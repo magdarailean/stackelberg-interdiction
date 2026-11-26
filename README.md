@@ -10,6 +10,7 @@ py -3.11 -m venv .venv
 python -m pip install -r requirements.txt
 python -m unittest -v
 python -m checkpoints.run
+python -m checkpoints.study --output results
 python benchmark.py
 python benchmark.py --rows 60 --columns 60 --train 2 --test 2 --time-limit 15
 python benchmark.py --slots 6 --crews 2 --shift 2 --budget 8 --factor 0.5
@@ -43,3 +44,33 @@ SCIP minimizes the mean daily cut cost. Each day and hour has an independent sou
 - Absolute gap is the nonnegative difference between evaluated incumbent and solver lower bound. Relative gap divides it by the incumbent, with zero for a zero objective.
 - Worst-tail delivery averages the highest ceil(10% × day count) daily deliveries, after averaging random schedules within day.
 - Approximate 95% percentile intervals resample entire days 2,000 times. Gain over greedy uses paired daily differences; positive means less delivery. Intervals condition on the fitted schedules, including hindsight selection.
+
+## Offline regional fixture
+
+The regional mode uses an invented two-lane diagram with jurisdictions A, B and C. All inputs are generated locally. The snapshot contains no OpenStreetMap or Natural Earth data. OpenStreetMap distributes its database under the ODbL; the fixture has no OSM-derived geometry.
+
+```powershell
+python -m scripts.build_network
+python benchmark.py --network regional --planner single > regional.json
+python benchmark.py --network regional --planner coalition
+python -m pip install -r requirements-plot.txt
+python -m scripts.plot_map regional.json fixture.png
+```
+
+The benchmark loads the frozen GraphML and checks its metadata and input fingerprints. Rebuild after editing fixture inputs. The scaling rows in its JSON report use the configured candidate/slot/day combinations.
+
+- Fictional node coordinates use diagram units. Gate coordinates in the CSV are blank; directed node pairs identify the locations.
+- Only listed directional gates connect jurisdictions. Gate capacity is capped by the adjoining modeled road capacity.
+- Primary segments have capacity 16 and speed 60 km/h; secondary segments have capacity 12 and speed 45 km/h.
+- Every detailed segment represents 900 m. Travel time is descriptive and does not constrain crew relocation.
+- Each independent hourly segment closure has probability 2% for primary or 4% for secondary, doubled under shift.
+- Total hourly supply is a uniform integer from 12 to 26, split equally between the two origins or 75/25 under shift.
+- Each destination independently draws integer demand uniformly from 8 to 15.
+- Days have equal probability independent of supply. Train, tune, nominal test and shifted test use distinct deterministic seed streams.
+- Single mode has two A crews. Coalition has two A crews and one each for B and C. Pools replace the grid crew cap, and only the local listed authority may staff a site.
+- After applying hourly closures, a directed one-in/one-out chain takes its minimum capacity; parallel alternatives add their capacities. Sites, crossing endpoints and zones remain explicit, and a bypass cannot merge into a controllable edge.
+- MILPs use the reduced hourly graphs. All policy delivery metrics use the paired detailed graphs, including the training metrics.
+- The reduction check reports mean absolute relative error over hourly no-deployment flows, with denominator one when detailed flow is zero. The test also compares every single-site deployment.
+- The scaling table uses prefixes of the sorted fictional candidate list and reports solver time separately from build time. Its results describe this small fixture only.
+
+Edit `data/fixture.json` for class parameters, zone references, draw ranges, shift, resource pools, scaling sizes and the default 5% error tolerance. The two CSV files supply candidate permissions and hypothetical gate capacities.
