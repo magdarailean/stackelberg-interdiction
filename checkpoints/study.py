@@ -11,6 +11,7 @@ from time import perf_counter
 from .accounting import account
 from .backlog import carry_day
 from .defender import Plan, centrality, greedy, random_schedule
+from .dobss import best_pure_value, solve_dobss
 from .evaluate import Sample, interval
 from .experiment import diagnostics
 from .game import generate_responses, schedules, solve_game
@@ -175,6 +176,61 @@ def fit_policies(args, cfg, rules, graph, small):
                  if i in active else [] for i in range(len(plans))]
     matched = matched_fits(plans,policies,matrices,regimes,selected_alpha,cfg["contamination"])
     return Fit(plans, policies, matrices, complete, game, diagnostics(fixed, pooled), seconds, utilities, selected_alpha,matched)
+
+
+def dobss_main_family(plans, train, cfg, complete_schedule_set):
+    """Build the finite depart/defer Bayesian game from per-type ledger outcomes."""
+    settings = cfg["dobss"]
+    priors = settings["type_priors"]
+    if len(priors) != len(train):
+        raise ValueError("DOBSS type priors must match the origin-share profiles")
+    leader = [[[], []] for _ in train]
+    follower = [[[], []] for _ in train]
+    for plan in plans:
+        for t, sample in enumerate(train):
+            outcome = ledger(sample, plan, cfg)
+            attempted = outcome["supply"] - outcome["undeparted"]
+            delay_cost = settings["leader_delay_cost_per_minute"] * outcome["civilian_delay"]
+            leader[t][0].append(outcome["intercepted"] - delay_cost)
+            leader[t][1].append(-delay_cost)
+            follower[t][0].append(
+                outcome["delivered"]
+                - cfg["attempt_cost_per_unit"] * attempted
+                - settings["follower_expected_loss_per_interception"] * outcome["intercepted"]
+            )
+            follower[t][1].append(0.0)
+    game = solve_dobss(priors, leader, follower, seconds=cfg["dobss"].get("time_limit_seconds"))
+    pure_value = best_pure_value(priors, leader, follower)
+    responses = {t: settings["actions"][a] for t, a in game.get("responses", {}).items()}
+    support = [dict(schedule=sorted(plans[i]), probability=probability)
+               for i, probability in game.get("mass", {}).items()]
+    return {
+        "formulation": "DOBSS finite-schedule mixed Bayesian Stackelberg MILP",
+        "status": game["status"],
+        "type_names": [dict(origin_share_profile=list(profile), prior=prior)
+                       for profile, prior in zip(cfg["demand_profiles"], priors)],
+        "follower_actions": settings["actions"],
+        "information": "follower observes the schedule distribution, not its realization",
+        "tie_breaking": "leader-favorable among follower best responses",
+        "schedule_pool_size": len(plans),
+        "complete_schedule_set": complete_schedule_set,
+        "schedule_pool_is_restricted": not complete_schedule_set,
+        "mixed_leader_value": game.get("value"),
+        "best_pure_leader_value": pure_value,
+        "value_of_randomization": game.get("value", 0.0) - pure_value,
+        "leader_schedule_mass": support,
+        "type_responses": responses,
+        "lower_bound": game.get("lower_bound"),
+        "upper_bound": game.get("upper_bound"),
+        "absolute_gap": game.get("absolute_gap"),
+        "solve_seconds": game["solve_seconds"],
+        "payoff_assumptions": {
+            "leader": "modeled interceptions minus civilian-delay cost",
+            "follower_depart": "delivered minus attempt cost minus expected interception loss",
+            "follower_defer": "zero utility; shipment remains undeparted",
+            "depart_route_response": "adaptive maximum flow under the scenario graph",
+        },
+    }
 
 
 def matched_report(full,fit,cfg):
@@ -595,6 +651,7 @@ def study(args: argparse.Namespace) -> dict:
                 mean_relative_flow_error=mean(errors), complete_schedule_set=fit.complete, schedules=len(fit.plans),
                 mixed_support=[dict(schedule=sorted(fit.plans[i]), probability=p) for i,p in fit.policies["mixed"].items()],
                 training_milp=fit.solver, sensitivity=sensitivity, selected_alpha=fit.selected_alpha,
+                dobss=dobss_main_family(fit.plans,small["train"],cfg,fit.complete),
                 matched_hours=matched_report(full,fit,cfg),
                 matched_interception_vs_greedy=matched_interception_report(full,fit,cfg,args.seed),
                 interception_first_validation=interception_validation(args,cfg,rules,graph),
