@@ -1,6 +1,6 @@
 # Stackelberg checkpoint benchmark
 
-For the real OSM corridor data recipe and its current status, see [docs/OSM_CORRIDOR.md](docs/OSM_CORRIDOR.md).
+For the real OSM corridor data recipe and its current status, see [docs/OSM_CORRIDOR.md](docs/OSM_CORRIDOR.md). For research framing, synthetic-data limits, and measured-versus-assumed quantities, see [docs/RISK_AND_LIMITS.md](docs/RISK_AND_LIMITS.md).
 
 The defender commits to one binary site-by-hour schedule across all sampled days. A follower observes the schedule and maximizes delivered flow on each hourly directed graph. Lower daily delivery is better.
 
