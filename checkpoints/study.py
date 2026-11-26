@@ -699,8 +699,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     if args.network == "corridor":
-        from .snapshot import inspect_snapshot
-        print(json.dumps(inspect_snapshot(args.corridor_dir),indent=2))
+        from .snapshot import corridor_report
+        print(json.dumps(corridor_report(args.corridor_dir, args.seed),indent=2))
         return
     del args.network, args.corridor_dir
     preset = config()["large"] if args.large else dict(slots=4,budget=4)

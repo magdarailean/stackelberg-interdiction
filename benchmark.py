@@ -44,8 +44,8 @@ def main() -> None:
     parser.add_argument("--factor", type=float, default=0.3)
     args = parser.parse_args()
     if args.network == "corridor":
-        from checkpoints.snapshot import inspect_snapshot
-        print(json.dumps(inspect_snapshot(args.corridor_dir),indent=2))
+        from checkpoints.snapshot import corridor_report
+        print(json.dumps(corridor_report(args.corridor_dir, args.seed),indent=2))
         return
     if min(args.rows, args.columns) < 2 or min(args.train, args.test) < 1:
         parser.error("The grid needs at least two rows and columns, and each split needs a scenario.")

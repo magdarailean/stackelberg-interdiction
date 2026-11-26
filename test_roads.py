@@ -47,3 +47,14 @@ class RoadTest(unittest.TestCase):
             self.assertAlmostEqual(record["speed_kmh"],48.28032)
             self.assertAlmostEqual(record["length_m"],111.195,places=2)
             self.assertEqual(metadata,json.loads(path.with_suffix(".json").read_text()))
+
+    def test_fictional_corridor_stress(self):
+        from checkpoints.snapshot import corridor_report
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            build(Path("data/fictional_roads.osm.xml"), output)
+            report = corridor_report(output, 42)
+        self.assertEqual(report["detailed_edges"], 10005)
+        self.assertEqual(report["comparisons"], 60)
+        self.assertEqual(report["max_flow_error"], 0)
+        self.assertEqual(report["max_gap"], 0)

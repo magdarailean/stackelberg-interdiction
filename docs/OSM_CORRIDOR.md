@@ -38,4 +38,6 @@ python benchmark.py --network corridor --corridor-dir corridor-fixture
 python -m checkpoints.study --network corridor --corridor-dir corridor-fixture
 ```
 
-The offline file has four nodes and five directed edges. The corridor commands report geometry and integrity only. Checkpoint optimization and reduction-error measurements use fictional networks. The real PBF recipe has not been run in this checkout.
+The offline file has four nodes and five directed arcs. Both commands recognize its source hash and check its graph against the bundled XML. On this fixture each arc becomes a separate chain of 2,001 equal segments. The two eligible primary arcs each carry one candidate at their midpoint (about 111 m along the fictional road between candidates). The reverse direction and parallel road retain distinct chains. Other snapshots receive geometry verification only.
+
+The fixture config sets synthetic class capacities and terminal zones. One crew works one slot, the factor is 0.3, and the default research ledger applies. Each seed draws independent supply and demand at the two terminals once per split. Unprotected one-in/one-out chain nodes collapse to minimum series capacity; parallel capacities add. Candidate endpoints and zones remain explicit. The MILP and greedy fit on the reduced graph and both use the detailed graph for scoring. At one hour, greedy exhausts the feasible active choices. Subdivision tests flow preservation, not planning complexity. The real PBF recipe has not been run in this checkout.

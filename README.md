@@ -54,7 +54,7 @@ The same study includes a finite-schedule Bayesian general-sum DOBSS MILP. Follo
 
 The separating benchmark runs four parameter combinations on a 60×60 fictional grid for seeds 42–51. Two use ordinary grid candidates and two add a parallel branch with a pair of serial candidates. Both policies use the same checkpoint-hours and train on the same two days per seed. Nominal and shifted test draws are separate. The JSON retains every paired outcome, solve time, and bound. DOBSS tests a restricted schedule pool and an interception-based response candidate. Its restricted gap does not certify an optimum for the full game.
 
-Both CLIs accept `--network corridor` for geometry verification. The loader checks GraphML SHA-256 and metadata counts, preserves direction and parallel edges, and reports crossing status as unverified. Use the [snapshot recipe and offline fixture commands](docs/OSM_CORRIDOR.md).
+Both CLIs accept `--network corridor` for geometry verification and run a ten-seed interception comparison on the recognized fictional XML fixture. The loader checks GraphML SHA-256 and metadata counts, preserves direction and parallel edges, and reports crossing status as unverified. Use the [snapshot recipe and offline fixture commands](docs/OSM_CORRIDOR.md).
 
 The serial-pair case beat greedy on all 10 seeds at two checkpoint-hours. Mean modeled interception gain was 4.20 on nominal days and 5.46 on shifted days. The other three cases tied. The [measured-versus-assumed table](docs/RISK_AND_LIMITS.md#measured-versus-assumed) gives paired intervals, runtimes, and restricted DOBSS results.
 

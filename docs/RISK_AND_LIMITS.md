@@ -47,3 +47,7 @@ DOBSS values are training utility, including modeled civilian delay. Mixed and p
 ## Interpretation rule
 
 Treat every output as conditional on the graph, synthetic flow-generation rules, assumed priors and utilities, and the observation model supplied to the code. Report interception separately from delivery reduction, deferral, and undeparted flow. Do not label modeled flow as detected criminal activity, call a hypothetical site an operational checkpoint, or infer that a route is used by illicit actors.
+
+### Fictional corridor subdivision
+
+Ten seeds (42–51), 10,005 detailed arcs, nine reduced arcs and two candidate sites. Mean optimized-minus-greedy interception and paired 95% interval were 0 [0, 0] on both test mixes. The maximum absolute error across 60 flow comparisons and maximum training MILP gap were both zero. Mean optimizer wall time was 0.006 s. The five-arc topology, single active hour and saturated inspection capacity limit this comparison. Crossings are unverified.
