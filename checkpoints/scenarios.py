@@ -1,4 +1,3 @@
-"""Seeded toy days with independent hourly conditions."""
 from random import Random
 
 from .follower import Scenario
@@ -8,7 +7,6 @@ Day = tuple[Scenario, ...]
 
 
 def generate(count: int, seed: int, closure_probability: float, slots: int = 4) -> tuple[Day, ...]:
-    """Draw toy supply, demand and independent interior closures."""
     if min(count, slots) < 1 or not 0 <= closure_probability <= 1:
         raise ValueError("Invalid toy scenario parameters")
     rng = Random(seed)

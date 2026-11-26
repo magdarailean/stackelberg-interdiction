@@ -1,4 +1,3 @@
-"""Shared time-indexed min-cut model."""
 from dataclasses import dataclass
 from math import isfinite
 from time import perf_counter
@@ -11,7 +10,6 @@ from .evaluate import Sample
 
 @dataclass
 class Result:
-    """Feasible policy, dual bound and model diagnostics."""
     plan: Plan
     status: str
     lower: float | None
@@ -22,7 +20,6 @@ class Result:
 
 
 def optimize(sample: Sample, rules: Rules, seconds: float, incumbent: Plan = frozenset()) -> Result:
-    """Minimize mean daily delivery using one cut per hour and day."""
     if not isfinite(seconds) or seconds <= 0 or not rules.feasible(incumbent):
         raise ValueError("Invalid time limit or incumbent")
     start = perf_counter()
@@ -32,8 +29,12 @@ def optimize(sample: Sample, rules: Rules, seconds: float, incumbent: Plan = fro
     s.SetNumThreads(1)
     x = {(t, e): s.BoolVar("") for t, sites in enumerate(rules.allowed) for e in sites}
     s.Add(s.Sum(x.values()) <= rules.budget)
+    if rules.delay_cap is not None:
+        s.Add(s.Sum(rules.delay_per_slot[t]*var for (t,_),var in x.items()) <= rules.delay_cap)
     for t, sites in enumerate(rules.allowed):
         s.Add(s.Sum(x[t, e] for e in sites) <= rules.crews)
+        for group, limit in rules.pools:
+            s.Add(s.Sum(x[t, e] for e in sites if e in group) <= limit)
         for e in sites:
             onset = x[t, e] - x.get((t-1, e), 0)
             for i in range(1, min(rules.shift, len(rules.allowed) + 1)):
@@ -44,7 +45,7 @@ def optimize(sample: Sample, rules: Rules, seconds: float, incumbent: Plan = fro
                         s.Add(x[t, e] + x[t-1, prev] <= 1)
     objective = s.Objective()
     objective.SetMinimization()
-    for day in sample.days:
+    for day, probability in zip(sample.days, sample.weights):
         if len(day) != len(rules.allowed):
             raise ValueError("Day length differs from planning horizon")
         for t, slot in enumerate(day):
@@ -57,7 +58,7 @@ def optimize(sample: Sample, rules: Rules, seconds: float, incumbent: Plan = fro
                 crossing = side[u] - side[v]
                 d = s.NumVar(0, 1, "")
                 s.Add(d >= crossing)
-                weight = cap / len(sample.days)
+                weight = cap * probability
                 action = x.get((t, (u, v)))
                 if action is not None and sample.factor < 1:
                     z = s.NumVar(0, 1, "")

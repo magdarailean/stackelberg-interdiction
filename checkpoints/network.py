@@ -1,4 +1,3 @@
-"""Fictional six-node directed network."""
 import networkx as nx
 
 from collections.abc import Callable
@@ -9,7 +8,6 @@ from .follower import Edge, Scenario
 SITES = (("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"))
 
 def toy_graph() -> nx.DiGraph:
-    """Return fresh capacities in flow units per hour."""
     graph = nx.DiGraph()
     graph.add_weighted_edges_from([
         ("S", "A", 10), ("S", "B", 8), ("A", "C", 7), ("A", "D", 4),
@@ -19,7 +17,6 @@ def toy_graph() -> nx.DiGraph:
 
 
 def synthetic_network(rows: int, columns: int) -> tuple[tuple[Edge, ...], Callable[[int, bool], Scenario]]:
-    """Return fixed candidate sites and a seeded factory for fictional scenarios."""
     barrier = columns // 2 - 1
     source = rows * columns
     sink = source + 1

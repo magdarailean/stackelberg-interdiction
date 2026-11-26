@@ -1,4 +1,3 @@
-"""Independent checks of the time-indexed interdiction model."""
 import unittest
 from itertools import product
 from random import Random
@@ -13,7 +12,6 @@ from checkpoints.milp import optimize
 
 
 def instance(seed: int, slots: int = 3) -> Sample:
-    """Sample parallel branches behind a shared upstream bottleneck."""
     rng = Random(seed)
 
     def hour() -> Scenario:

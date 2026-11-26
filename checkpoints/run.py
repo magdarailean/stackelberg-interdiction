@@ -1,4 +1,3 @@
-"""Toy checkpoint experiment with a shared solver."""
 import argparse
 import json
 
@@ -10,7 +9,6 @@ from .scenarios import generate
 
 
 def main() -> None:
-    """Compare training policies on shifted toy days."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--slots", type=int, default=4)
     args = parser.parse_args()

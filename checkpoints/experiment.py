@@ -1,4 +1,3 @@
-"""Common experiment for the grid and toy benchmarks."""
 from math import ceil
 from statistics import mean
 from time import perf_counter
@@ -11,7 +10,6 @@ from .milp import Result, optimize
 
 
 def diagnostics(result: Result, sample: Sample) -> dict:
-    """Report independently evaluated incumbent and SCIP proof gap."""
     upper = sample.mean(result.plan)
     gap = None if result.lower is None else max(0., upper-result.lower)
     return dict(status=result.status, upper=upper, lower=result.lower, absolute_gap=gap,
@@ -21,8 +19,8 @@ def diagnostics(result: Result, sample: Sample) -> dict:
 
 
 def experiment(train: Sample, tests: dict[str, Sample], rules: Rules,
-               topology: nx.DiGraph, seed: int, seconds: float) -> dict:
-    """Fit training policies once, then solve one hindsight policy per test split."""
+               topology: nx.DiGraph, seed: int, seconds: float,
+               detailed: dict[str, Sample] | None = None) -> dict:
     start = perf_counter()
     heuristic = greedy(rules, train.mean)
     elapsed = perf_counter()-start
@@ -31,15 +29,19 @@ def experiment(train: Sample, tests: dict[str, Sample], rules: Rules,
                 "centrality": [centrality(rules, topology, seed)],
                 "random": [random_schedule(rules, seed+i) for i in range(20)]}
     report = dict(milp=diagnostics(fitted, train), greedy_seconds=elapsed, splits={})
+    if detailed:
+        report["fixture_schedule"] = sorted(fitted.plan)
     for name, sample in {"train": train, **tests}.items():
         plans = policies.copy()
         split = {}
-        if name != "train":
+        if name not in ("train", "tune"):
             incumbent = min((p for group in plans.values() for p in group), key=sample.mean)
             oracle = optimize(sample, rules, seconds, incumbent)
             plans["hindsight_oracle_unattainable"] = [oracle.plan]
             split["oracle_solver"] = diagnostics(oracle, sample)
         scores = {}
+        if detailed:
+            sample = detailed[name]
         baseline = sample.flows(frozenset())
         reference = sample.flows(heuristic)
         for policy, group in plans.items():

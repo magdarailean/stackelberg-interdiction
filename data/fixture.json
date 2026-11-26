@@ -1,0 +1,73 @@
+{
+  "snapshot": "snapshot_2026-11-26",
+  "large": {"slots":6,"budget":8,"delay_cap":42,"pool_limit":96,
+            "sites":[["a0","a0m"],["b0","b0m"],["a2","a2m"],["b2","b2m"],["a5","a5m"],["b5","b5m"]]},
+  "classes": {
+    "primary": {
+      "capacity": 16,
+      "speed_kmh": 60,
+      "closure": 0.02
+    },
+    "secondary": {
+      "capacity": 12,
+      "speed_kmh": 45,
+      "closure": 0.04
+    }
+  },
+  "segment_m": 900,
+  "supply": [
+    12,
+    26
+  ],
+  "demand": [
+    8,
+    15
+  ],
+  "origins": [
+    "a0",
+    "b0"
+  ],
+  "shares": [
+    0.5,
+    0.5
+  ],
+  "shifted_shares": [
+    0.75,
+    0.25
+  ],
+  "destinations": [
+    "a9",
+    "b9"
+  ],
+  "shift_multiplier": 2,
+  "pools": {
+    "single": {
+      "A": 2,
+      "B": 0,
+      "C": 0
+    },
+    "coalition": {
+      "A": 2,
+      "B": 1,
+      "C": 1
+    }
+  },
+  "tolerance": 0.05,
+  "scaling": [
+    [
+      2,
+      2,
+      2
+    ],
+    [
+      4,
+      3,
+      3
+    ],
+    [
+      6,
+      4,
+      4
+    ]
+  ]
+}

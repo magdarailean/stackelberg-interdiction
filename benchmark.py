@@ -1,4 +1,3 @@
-"""Grid benchmark for time-indexed checkpoint schedules."""
 import argparse
 import json
 
@@ -11,7 +10,6 @@ from checkpoints.network import synthetic_network
 def run(rows: int, columns: int, budget: int, seed: int, train_count: int,
         test_count: int, time_limit: float, slots: int = 4, crews: int = 1,
         shift: int = 1, factor: float = 0.3) -> dict:
-    """Compare all policies on disjoint training, nominal and shifted days."""
     sites, make = synthetic_network(rows, columns)
     rules = Rules((sites,) * slots, budget, crews, shift)
     seeds = iter(range(seed, seed + slots*(train_count+2*test_count)))
@@ -28,7 +26,9 @@ def run(rows: int, columns: int, budget: int, seed: int, train_count: int,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description='Grid benchmark for time-indexed checkpoint schedules.')
+    parser.add_argument("--network", choices=("grid", "regional"), default="grid")
+    parser.add_argument("--planner", choices=("single", "coalition"), default="single")
     parser.add_argument("--rows", type=int, default=6)
     parser.add_argument("--columns", type=int, default=8)
     parser.add_argument("--budget", type=int, default=4)
@@ -45,6 +45,10 @@ def main() -> None:
         parser.error("The grid needs at least two rows and columns, and each split needs a scenario.")
     if args.budget < 0 or not 0 < args.time_limit < float("inf"):
         parser.error("Budget must be nonnegative and the time limit must be finite and positive.")
+    if args.network == "regional":
+        from checkpoints.geo import regional
+        print(json.dumps(regional(args), indent=2))
+        return
     print(json.dumps(run(args.rows, args.columns, args.budget, args.seed,
                          args.train, args.test, args.time_limit, args.slots,
                          args.crews, args.shift, args.factor), indent=2))

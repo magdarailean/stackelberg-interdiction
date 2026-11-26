@@ -1,0 +1,5 @@
+crossing_id,name,from_country,to_country,lat,lon,capacity_flow_per_hour,status,notes,from_node,to_node
+a3,Fictional gate a3,A,B,,,14,hypothetical,Diagram units only,a3,a4
+a6,Fictional gate a6,B,C,,,14,hypothetical,Diagram units only,a6,a7
+b3,Fictional gate b3,A,B,,,14,hypothetical,Diagram units only,b3,b4
+b6,Fictional gate b6,B,C,,,14,hypothetical,Diagram units only,b6,b7

@@ -1,0 +1,14 @@
+{
+  "source": "fictional fixture",
+  "bbox": null,
+  "osmnx_version": null,
+  "created_utc": "2026-11-26T10:26:45.364388+00:00",
+  "nodes": 28,
+  "edges": 28,
+  "sha256": "e1cfa866e0774ed2e5d95f06bc8868ef35d48fbbea771833083f4918bcaa33e2",
+  "layers": {
+    "fixture.json": "e48c67ce497196ac85470733a521911a449405375aa217cd7f97b42b4fed7648",
+    "candidate_sites.csv": "ee05907734529b73e0f6a133b82cec4020287ea6f3e45b35d9d68265441ae0a6",
+    "crossings.csv": "1f0349696d50d18602f0234c4f46367d64564ad9b6f668f63633b3c11a99d767"
+  }
+}
