@@ -26,19 +26,19 @@ This is a **synthetic preparedness simulator**, not an intelligence product or a
 | DOBSS solver verification | 20 seeded random tiny games match multiple-LP values within `1e-6`; a constructed game has mixed value **0.5** versus best pure **0.0** | Those checks validate the finite-game implementation, not the realism of utility inputs. |
 | Value of randomization on the main study family | DOBSS mixed value **1.505625**, best-pure value **1.505625**, measured difference approximately **0**; 38 feasible schedules enumerated; solve time **0.014 s**, optimality gap **0** | Type priors and payoff coefficients are declared assumptions in `data/research.json`. The main family did not benefit from randomization. |
 | Runtime and optimality | The separating suite used at least 10,711 directed edges per hourly graph. See the runtime and gap table below. | Synthetic-grid speed does not establish runtime on a real 10,000-edge corridor. |
-| Corridor snapshot verification | Both CLIs verified the offline OSM fixture manifest, SHA-256, four nodes and five directed edges. The tamper test rejected modified GraphML. | Real snapshot download, candidate siting, corridor optimization and corridor flow reduction remain unverified. The CLI corridor mode checks geometry and integrity only. |
+| Corridor snapshot verification | Both CLIs verified the offline OSM fixture manifest, SHA-256, four nodes and five directed edges. The tamper test rejected modified GraphML. | Real snapshot download, candidate siting, corridor optimization and corridor flow reduction remain unverified. Both CLIs also exercise reduction and interception on a recognized fictional snapshot. |
 | VIIRS prior | Not used | Skipped; no conclusions based on VIIRS or nighttime lights. |
 
 ### Separating experiment
 
 The grid is 60×60, with three candidate sites in one slot. Each case uses seeds 42–51 with two nominal training days, two independent nominal test days and two shifted test days. A separate shifted training stream supplies the second DOBSS type. The two types have equal prior probability. Inspection uses the shared aggregate ledger. Fixed-hours comparisons use one or two feasible hours as shown. The serial layout adds two parallel fictional branches, with two candidates sharing one branch in series. The four declared parameter combinations are a targeted sweep, not a full factorial experiment.
 
-| Layout and settings (budget / crews / capacity factor / detection / rate) | Nominal paired gain [95% CI] | Shifted paired gain [95% CI] | Wins per split | Interception mean time / max gap | DOBSS mean time / max pool gap | Mean restricted-pool mixed minus pure |
+| Layout and settings (budget / crews / capacity factor / detection / rate) | Nominal paired gain [95% CI] | Shifted paired gain [95% CI] | Wins per split | Interception mean time / max gap | DOBSS mean time / max pool gap | Mean restricted-pool mixed minus pure / mean unrestricted gap bound |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Grid low rate (2 / 2 / .3 / .25 / 3) | 0 [0, 0] | 0 [0, 0] | 0/10 | 1.40 s / 0 | 0.007 s / 0 | 0 |
-| Grid high rate (2 / 2 / .3 / .60 / 240) | 0 [0, 0] | 0 [0, 0] | 0/10 | 2.59 s / 0 | 0.049 s / 0 | 28.67 |
-| Serial pair (2 / 2 / .3 / .60 / 240) | 4.20 [4.20, 4.20] | 5.46 [5.46, 5.46] | 10/10 | 3.53 s / 0 | 0.016 s / 0.0024 | 39.01 |
-| Serial pair, single crew (2 / 1 / .5 / .25 / 240) | 0 [0, 0] | 0 [0, 0] | 0/10 | 4.14 s / 1.25 | 0.006 s / 0 | 0 |
+| Grid low rate (2 / 2 / .3 / .25 / 3) | 0 [0, 0] | 0 [0, 0] | 0/10 | 1.40 s / 0 | 0.007 s / 0 | 0 / 0.30 |
+| Grid high rate (2 / 2 / .3 / .60 / 240) | 0 [0, 0] | 0 [0, 0] | 0/10 | 2.59 s / 0 | 0.049 s / 0 | 28.67 / 259.33 |
+| Serial pair (2 / 2 / .3 / .60 / 240) | 4.20 [4.20, 4.20] | 5.46 [5.46, 5.46] | 10/10 | 3.53 s / 0 | 0.016 s / 0.0024 | 39.01 / 248.99 |
+| Serial pair, single crew (2 / 1 / .5 / .25 / 240) | 0 [0, 0] | 0 [0, 0] | 0/10 | 4.14 s / 1.25 | 0.006 s / 0 | 0 / 29.99 |
 
 Gains are modeled intercepts per day relative to greedy at equal hours. The serial-pair advantage is identical across seeds because the constructed branch contribution is fixed inside each split. It is evidence that the methods can separate under the stated assumptions. The single-crew case has one available checkpoint-hour and one solve with an open bound.
 
@@ -51,3 +51,7 @@ Treat every output as conditional on the graph, synthetic flow-generation rules,
 ### Fictional corridor subdivision
 
 Ten seeds (42–51), 10,005 detailed arcs, nine reduced arcs and two candidate sites. Mean optimized-minus-greedy interception and paired 95% interval were 0 [0, 0] on both test mixes. The maximum absolute error across 60 flow comparisons and maximum training MILP gap were both zero. Mean optimizer wall time was 0.006 s. The five-arc topology, single active hour and saturated inspection capacity limit this comparison. Crossings are unverified.
+
+### Held-out mixed policies
+
+Each grid seed fits a restricted mixed policy and selects the best pure policy across every feasible schedule using training draws only. The two synthetic follower types have equal priors. On independent nominal and shifted draws respectively, each type chooses depart or defer from its expected utility under the frozen distribution. Exact utility ties favor the leader (numerical tolerance 1e-8). A separate DOBSS solve uses the complete training schedule set. Its upper bound minus the restricted incumbent bounds the training utility lost to pool restriction and solver error. There is no corresponding claim of held-out optimality. Intervals resample ten paired seed differences 2,000 times.

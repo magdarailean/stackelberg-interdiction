@@ -163,3 +163,12 @@ def best_pure_value(priors, leader, follower) -> float:
             value += float(priors[t]) * leader_payoff
         best = max(best, value)
     return best
+
+def distribution_value(priors, leader, follower, mass):
+    total = 0.
+    for prior, rewards, utilities in zip(priors, leader, follower, strict=True):
+        expected = [sum(p * action[i] for i, p in mass.items()) for action in utilities]
+        best = max(expected)
+        total += prior * max(sum(p * action[i] for i, p in mass.items())
+                             for utility, action in zip(expected, rewards) if utility >= best - 1e-8)
+    return total

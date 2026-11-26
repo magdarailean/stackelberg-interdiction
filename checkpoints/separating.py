@@ -1,6 +1,6 @@
 import argparse
 import json
-from dataclasses import replace
+from itertools import combinations
 from pathlib import Path
 from statistics import mean
 from time import perf_counter
@@ -10,7 +10,8 @@ from .evaluate import Sample, interval
 from .geo import DATA
 from .interception import accounting_totals, expected_interception, optimize_interception
 from .network import synthetic_network
-from .study import dobss_main_family
+from .dobss import distribution_value, solve_dobss
+from .study import dobss_main_family, dobss_payoffs
 
 
 GRID_SIZE = 60
@@ -71,6 +72,30 @@ def fit_game(plans, train, rules, cfg, seconds):
     return game
 
 
+def heldout_game(game, training, testing, rules, cfg):
+    sites = rules.allowed[0]
+    complete = [frozenset((0, edge) for edge in subset)
+                for k in range(rules.budget + 1) for subset in combinations(sites, k)
+                if rules.feasible(frozenset((0, edge) for edge in subset))]
+    priors = cfg["dobss"]["type_priors"]
+    leader, follower = dobss_payoffs(complete, training, cfg)
+    global_fit = solve_dobss(priors, leader, follower, cfg["dobss"]["time_limit_seconds"])
+    upper = (global_fit["upper_bound"] if global_fit["status"] in ("optimal", "feasible")
+             else game["global_upper_bound"])
+    pure = max(range(len(complete)), key=lambda i: distribution_value(priors, leader, follower, {i: 1.}))
+    mass = {complete.index(frozenset(item["schedule"])): item["probability"]
+            for item in game["leader_schedule_mass"]}
+    if not mass:
+        raise RuntimeError("DOBSS returned no mixed policy")
+    leader, follower = dobss_payoffs(complete, testing, cfg)
+    mixed_value = distribution_value(priors, leader, follower, mass)
+    pure_value = distribution_value(priors, leader, follower, {pure: 1.})
+    return dict(mixed=mixed_value, pure=pure_value, gain=mixed_value-pure_value,
+                training_pool_to_global_upper_gap=max(0., upper-game["lower_bound"]),
+                global_solve_seconds=global_fit["solve_seconds"], global_status=global_fit["status"],
+                complete_schedules=len(complete))
+
+
 def run_seed(cell, seed, seconds, cfg):
     start = perf_counter()
     candidates, make = synthetic_network(GRID_SIZE, GRID_SIZE)
@@ -92,6 +117,8 @@ def run_seed(cell, seed, seconds, cfg):
                     cfg["dobss"],type_priors=[.5,.5],time_limit_seconds=seconds))
     plans = list(dict.fromkeys([frozenset(), baseline, fitted.plan, random_schedule(rules,seed)]))
     game = fit_game(plans,[train,second_type],rules,game_cfg,seconds)
+    game["heldout"] = heldout_game(game, [train, second_type], [nominal, shifted], rules, game_cfg)
+    game["training_pool_to_global_upper_gap"] = game["heldout"]["training_pool_to_global_upper_gap"]
     evaluations = {}
     for label, sample in (("nominal",nominal),("shifted",shifted)):
         evaluations[label] = {name: accounting_totals(sample,plan,inspection)
@@ -111,7 +138,11 @@ def summary(runs):
         value,lo,hi = interval(gains,42)
         splits[label] = dict(mean_gain=value, ci95=[lo,hi],wins=sum(x>1e-9 for x in gains),
                              losses=sum(x< -1e-9 for x in gains),seeds=len(gains))
-    return dict(splits=splits, optimizer_mean_seconds=mean(r["optimizer"]["seconds"] for r in runs),
+    outcomes = [r["game"]["heldout"] for r in runs]
+    return dict(heldout_gain_ci=interval([row["gain"] for row in outcomes], 42),
+                mean_global_dobss_seconds=mean(row["global_solve_seconds"] for row in outcomes),
+                mean_training_pool_to_global_upper_gap=mean(row["training_pool_to_global_upper_gap"] for row in outcomes),
+                splits=splits, optimizer_mean_seconds=mean(r["optimizer"]["seconds"] for r in runs),
                 optimizer_max_gap=max(r["optimizer"]["gap"] for r in runs),
                 dobss_mean_seconds=mean(r["game"]["solve_seconds"] for r in runs),
                 dobss_max_pool_gap=max(r["game"]["absolute_gap"] for r in runs),

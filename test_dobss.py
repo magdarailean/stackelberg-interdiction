@@ -38,5 +38,27 @@ class DOBSSolverTest(unittest.TestCase):
         self.assertGreater(mixed["value"] - pure, 0.49)
 
 
+class DistributionTest(unittest.TestCase):
+    def test_response_precedes_schedule_draw(self):
+        from checkpoints.dobss import distribution_value
+        rewards = [[[6, 6], [1, 1]]]
+        utilities = [[[4, -2], [0, 0]]]
+        self.assertEqual(distribution_value([1], rewards, utilities, {0: .5, 1: .5}), 6)
+        self.assertEqual(distribution_value([1], rewards, utilities, {1: 1}), 1)
+
+    def test_complete_schedule_reference(self):
+        import json
+        from unittest.mock import patch
+        from checkpoints.geo import DATA
+        from checkpoints.separating import CELLS, run_seed
+        config = json.loads((DATA / "research.json").read_text())
+        with patch("checkpoints.separating.GRID_SIZE", 6):
+            game = run_seed(CELLS[0], 42, 2, config)["game"]
+        heldout = game["heldout"]
+        self.assertEqual(heldout["complete_schedules"], 7)
+        self.assertAlmostEqual(heldout["gain"], heldout["mixed"] - heldout["pure"])
+        self.assertGreaterEqual(heldout["training_pool_to_global_upper_gap"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -183,7 +183,7 @@ def fit_policies(args, cfg, rules, graph, small):
     return Fit(plans, policies, matrices, complete, game, diagnostics(fixed, pooled), seconds, utilities, selected_alpha,matched)
 
 
-def dobss_main_family(plans, train, cfg, complete_schedule_set):
+def dobss_payoffs(plans, train, cfg):
     """Build the finite depart/defer Bayesian game from per-type ledger outcomes."""
     settings = cfg["dobss"]
     priors = settings["type_priors"]
@@ -204,11 +204,25 @@ def dobss_main_family(plans, train, cfg, complete_schedule_set):
                 - settings["follower_expected_loss_per_interception"] * outcome["intercepted"]
             )
             follower[t][1].append(0.0)
+    return leader, follower
+
+
+def dobss_main_family(plans, train, cfg, complete_schedule_set):
+    settings = cfg["dobss"]
+    priors = settings["type_priors"]
+    leader, follower = dobss_payoffs(plans, train, cfg)
     game = solve_dobss(priors, leader, follower, seconds=cfg["dobss"].get("time_limit_seconds"))
     pure_value = best_pure_value(priors, leader, follower)
     responses = {t: settings["actions"][a] for t, a in game.get("responses", {}).items()}
     support = [dict(schedule=sorted(plans[i]), probability=probability)
                for i, probability in game.get("mass", {}).items()]
+    if complete_schedule_set:
+        global_upper = game["upper_bound"]
+    else:
+        global_upper = cfg["detection_probability"] * sum(
+            prior * mean(sum(slot.graph.out_degree(slot.source, weight="capacity") for slot in day)
+                         for day in sample.days) for prior, sample in zip(priors, train))
+    lower = game.get("lower_bound")
     return {
         "formulation": "DOBSS finite-schedule mixed Bayesian Stackelberg MILP",
         "status": game["status"],
@@ -222,7 +236,8 @@ def dobss_main_family(plans, train, cfg, complete_schedule_set):
         "schedule_pool_is_restricted": not complete_schedule_set,
         "mixed_leader_value": game.get("value"),
         "best_pure_leader_value": pure_value,
-        "value_of_randomization": game.get("value", 0.0) - pure_value,
+        "value_of_randomization": None if lower is None else lower - pure_value,
+        "training_pool_to_global_upper_gap": None if lower is None else max(0., global_upper - lower),
         "leader_schedule_mass": support,
         "type_responses": responses,
         "lower_bound": game.get("lower_bound"),

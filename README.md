@@ -15,7 +15,7 @@ python -m checkpoints.run
 python -m checkpoints.study --output results
 python benchmark.py
 python benchmark.py --rows 60 --columns 60 --train 2 --test 2 --time-limit 15
-python -m checkpoints.separating --output separating.json
+python -m checkpoints.separating --seconds 6 --output separating.json
 python benchmark.py --slots 6 --crews 2 --shift 2 --budget 8 --factor 0.5
 ```
 
