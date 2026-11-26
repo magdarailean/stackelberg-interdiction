@@ -74,3 +74,17 @@ The benchmark loads the frozen GraphML and checks its metadata and input fingerp
 - The scaling table uses prefixes of the sorted fictional candidate list and reports solver time separately from build time. Its results describe this small fixture only.
 
 Edit `data/fixture.json` for class parameters, zone references, draw ranges, shift, resource pools, scaling sizes and the default 5% error tolerance. The two CSV files supply candidate permissions and hypothetical gate capacities.
+
+## Browser strategy game
+
+The local browser interface uses the same time-indexed `checkpoints` model as the command-line experiments. It compares a manual one-hour-per-site plan with greedy, centrality, random, MILP, and a clearly labeled unattainable test-set oracle. Every policy uses the same candidate edges, one-crew limit, planning horizon, checkpoint-hour budget, and scenario samples. The interface reports modeled delivered flow; it does not represent seizures or real traffic.
+
+The game map shows Romania, Moldova, Odesa, and the Black Sea for orientation. Candidate markers and the directed grid used by the optimizer are fictional and synthetic; the map does not supply road or border data.
+
+Create the Python environment as above, then start the web app from the repository root:
+
+```powershell
+.\launch_web.ps1
+```
+
+You can also double-click `Start Frontier Command.bat`. Keep its PowerShell window open while playing; stop the local server with Ctrl+C. The app is served at http://127.0.0.1:8765 and saves campaign progress in that browser on the same computer.
