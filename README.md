@@ -1,5 +1,7 @@
 # Stackelberg checkpoint benchmark
 
+For the real OSM corridor data recipe and its current status, see [docs/OSM_CORRIDOR.md](docs/OSM_CORRIDOR.md). For research framing, synthetic-data limits, and measured-versus-assumed quantities, see [docs/RISK_AND_LIMITS.md](docs/RISK_AND_LIMITS.md).
+
 The defender commits to one binary site-by-hour schedule across all sampled days. A follower observes the schedule and maximizes delivered flow on each hourly directed graph. Lower daily delivery is better.
 
 ## Run with Python 3.11 (PowerShell)
@@ -30,7 +32,7 @@ Both experiments emit JSON. The grid uses 4 training days and 8 days per test sp
 - Each hourly graph supplies its own capacities. Days have equal weight and daily delivery sums independent slot responses.
 - Toy hourly supply is uniform integer 12–20, demand 13–21, and each interior edge closes independently with probability 5% in training and 15% in shifted testing.
 - The grid independently draws hourly capacities, supply and closures. The shifted split widens per-row supply from 4–8 to 3–9 and adds diagonal links.
-- Lost delivery measures foregone modeled throughput. Interception, deferral and civilian delay require additional observations or models.
+- The base benchmark's lost delivery is foregone modeled throughput, not interception. The optional research study adds assumed inspection capacity/detection and separate deferral/civilian-delay accounting; those values are synthetic model outputs, not observations.
 
 ## Optimization and evaluation
 
@@ -44,6 +46,10 @@ SCIP minimizes the mean daily cut cost. Each day and hour has an independent sou
 - Absolute gap is the nonnegative difference between evaluated incumbent and solver lower bound. Relative gap divides it by the incumbent, with zero for a zero objective.
 - Worst-tail delivery averages the highest ceil(10% × day count) daily deliveries, after averaging random schedules within day.
 - Approximate 95% percentile intervals resample entire days 2,000 times. Gain over greedy uses paired daily differences; positive means less delivery. Intervals condition on the fitted schedules, including hindsight selection.
+
+The research study writes `matched_interception_vs_greedy` and `interception_first_validation` to `results.json`. The first is the existing delivered-flow MILP scored on interception as a secondary outcome. The second fits a separate interception-first MILP: it maximizes the accounting model's expected interceptions, with each sampled max-flow enforced by lazily separated min-cut constraints. SCIP's relaxation bound and the evaluated schedule give an upper and lower bound. It compares against greedy-on-interception at equal checkpoint-hours across 10 fixed seeds and nominal/shifted held-out scenario mixes, with paired 95% intervals and seed win rates. Inspection rate and detection probability regimes are in `data/research.json`. Interception is calculated from synthetic inspection capacity and an assumed detection probability; it is not an observed seizure rate. Deferral and delivered flow remain separate outcomes. A positive mean with an interval containing zero is weak evidence and must not be presented as a reliable advantage.
+
+The same study includes a finite-schedule Bayesian general-sum DOBSS MILP. Follower types are origin-share profiles with priors; each chooses between adaptive-flow departure and deferral after observing the defender's schedule distribution. The defender payoff is modeled interception minus civilian-delay cost, and follower payoff is delivered flow minus attempt cost and expected interception loss. `results.json` reports the DOBSS value, best pure value, their difference (value of randomization), bounds, and solve time. The pool is enumerated when feasible and otherwise the output is explicitly restricted to the generated schedule pool. The DOBSS construction follows [Paruchuri et al. (AAMAS 2008)](https://u.cs.biu.ac.il/~krauss/data/articles/AAMAS_2008.pdf); its finite-game implementation is cross-checked against enumerated multiple-LP solutions.
 
 ## Offline regional fixture
 

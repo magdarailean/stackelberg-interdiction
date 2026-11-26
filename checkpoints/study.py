@@ -11,10 +11,12 @@ from time import perf_counter
 from .accounting import account
 from .backlog import carry_day
 from .defender import Plan, centrality, greedy, random_schedule
+from .dobss import best_pure_value, solve_dobss
 from .evaluate import Sample, interval
 from .experiment import diagnostics
 from .game import generate_responses, schedules, solve_game
 from .geo import DATA, config, load, planning, samples
+from .interception import accounting_totals, expected_interception, optimize_interception
 from .milp import optimize
 from .matched import matched_fits
 from .risk import risk_mixture, upper_tail
@@ -181,6 +183,61 @@ def fit_policies(args, cfg, rules, graph, small):
     return Fit(plans, policies, matrices, complete, game, diagnostics(fixed, pooled), seconds, utilities, selected_alpha,matched)
 
 
+def dobss_main_family(plans, train, cfg, complete_schedule_set):
+    """Build the finite depart/defer Bayesian game from per-type ledger outcomes."""
+    settings = cfg["dobss"]
+    priors = settings["type_priors"]
+    if len(priors) != len(train):
+        raise ValueError("DOBSS type priors must match the origin-share profiles")
+    leader = [[[], []] for _ in train]
+    follower = [[[], []] for _ in train]
+    for plan in plans:
+        for t, sample in enumerate(train):
+            outcome = ledger(sample, plan, cfg)
+            attempted = outcome["supply"] - outcome["undeparted"]
+            delay_cost = settings["leader_delay_cost_per_minute"] * outcome["civilian_delay"]
+            leader[t][0].append(outcome["intercepted"] - delay_cost)
+            leader[t][1].append(-delay_cost)
+            follower[t][0].append(
+                outcome["delivered"]
+                - cfg["attempt_cost_per_unit"] * attempted
+                - settings["follower_expected_loss_per_interception"] * outcome["intercepted"]
+            )
+            follower[t][1].append(0.0)
+    game = solve_dobss(priors, leader, follower, seconds=cfg["dobss"].get("time_limit_seconds"))
+    pure_value = best_pure_value(priors, leader, follower)
+    responses = {t: settings["actions"][a] for t, a in game.get("responses", {}).items()}
+    support = [dict(schedule=sorted(plans[i]), probability=probability)
+               for i, probability in game.get("mass", {}).items()]
+    return {
+        "formulation": "DOBSS finite-schedule mixed Bayesian Stackelberg MILP",
+        "status": game["status"],
+        "type_names": [dict(origin_share_profile=list(profile), prior=prior)
+                       for profile, prior in zip(cfg["demand_profiles"], priors)],
+        "follower_actions": settings["actions"],
+        "information": "follower observes the schedule distribution, not its realization",
+        "tie_breaking": "leader-favorable among follower best responses",
+        "schedule_pool_size": len(plans),
+        "complete_schedule_set": complete_schedule_set,
+        "schedule_pool_is_restricted": not complete_schedule_set,
+        "mixed_leader_value": game.get("value"),
+        "best_pure_leader_value": pure_value,
+        "value_of_randomization": game.get("value", 0.0) - pure_value,
+        "leader_schedule_mass": support,
+        "type_responses": responses,
+        "lower_bound": game.get("lower_bound"),
+        "upper_bound": game.get("upper_bound"),
+        "absolute_gap": game.get("absolute_gap"),
+        "solve_seconds": game["solve_seconds"],
+        "payoff_assumptions": {
+            "leader": "modeled interceptions minus civilian-delay cost",
+            "follower_depart": "delivered minus attempt cost minus expected interception loss",
+            "follower_defer": "zero utility; shipment remains undeparted",
+            "depart_route_response": "adaptive maximum flow under the scenario graph",
+        },
+    }
+
+
 def matched_report(full,fit,cfg):
     rows = []
     for split,pair in full.items():
@@ -201,6 +258,161 @@ def matched_report(full,fit,cfg):
                     rows.append(dict(split=split,information="revealed" if revealed else "distribution",
                                      baseline=baseline,policy=name,checkpoint_hours=hours,delivered=delivered,
                                      gain=reference-delivered,gain_per_hour=(reference-delivered)/hours if hours else None))
+    return rows
+
+
+def _daily_interception_accounts(sample_family, plan, cfg):
+    return [accounting_totals(Sample((day,), sample.factor), plan, cfg)
+            for sample in sample_family for day in sample.days]
+
+
+def interception_validation(args, cfg, rules, graph):
+    if args.train <= 1 or args.test <= 1:
+        return {"status": "skipped", "reason": "small CLI run; full held-out validation uses configured seed set"}
+
+    offsets = cfg["interception_validation_offsets"]
+    train_days = cfg["interception_train_days"]
+    test_days = cfg["interception_test_days"]
+    regimes = cfg["interception_regimes"]
+    results = {regime["name"]: {split: [] for split in ("nominal_test", "shifted_test")}
+               for regime in regimes}
+    profile_samples = {}
+
+    for offset in offsets:
+        seed = args.seed + offset
+        train, nominal, shifted = [], [], []
+        for profile in cfg["demand_profiles"]:
+            _, reduced, _ = samples(graph, rules, train_days,
+                                    f"{seed}:interception:train", False, args.factor, tuple(profile))
+            train.append(reduced)
+            nominal_detail, _, _ = samples(graph, rules, test_days,
+                                           f"{seed}:interception:nominal", False, args.factor, tuple(profile))
+            shifted_detail, _, _ = samples(graph, rules, test_days,
+                                           f"{seed}:interception:shifted", True, args.factor, tuple(profile))
+            nominal.append(nominal_detail)
+            shifted.append(shifted_detail)
+
+        pooled = Sample(tuple(day for sample in train for day in sample.days), args.factor)
+        profile_samples[seed] = {"nominal_test": nominal, "shifted_test": shifted}
+        for regime in regimes:
+            settings = dict(cfg, **{key: value for key, value in regime.items() if key != "name"})
+            score = lambda plan: -expected_interception(pooled, plan, settings)
+            greedy_plan = greedy(rules, score, lookahead=1)
+            optimized = optimize_interception(
+                pooled, rules, settings, cfg["interception_time_limit"],
+                incumbent=greedy_plan, target_hours=len(greedy_plan),
+                max_iterations=cfg["interception_max_iterations"],
+            )
+            for split, family in profile_samples[seed].items():
+                baseline = _daily_interception_accounts(family, greedy_plan, settings)
+                policy = _daily_interception_accounts(family, optimized.plan, settings)
+                paired = [p["intercepted"] - g["intercepted"] for p, g in zip(policy, baseline)]
+                results[regime["name"]][split].append({
+                    "seed": seed,
+                    "checkpoint_hours": len(greedy_plan),
+                    "hours_match": len(greedy_plan) == len(optimized.plan),
+                    "greedy_intercepted": mean(row["intercepted"] for row in baseline),
+                    "optimizer_intercepted": mean(row["intercepted"] for row in policy),
+                    "greedy_deferred": mean(row["deferred"] for row in baseline),
+                    "optimizer_deferred": mean(row["deferred"] for row in policy),
+                    "greedy_delivered": mean(row["delivered"] for row in baseline),
+                    "optimizer_delivered": mean(row["delivered"] for row in policy),
+                    "paired_gain": mean(paired),
+                    "paired_ci95": interval(paired, seed)[1:],
+                    "win_rate_by_day": sum(value > 1e-9 for value in paired) / len(paired),
+                    "solver_status": optimized.status,
+                    "lower_bound": optimized.lower_bound,
+                    "upper_bound": optimized.upper_bound,
+                    "absolute_gap": optimized.absolute_gap,
+                    "solve_seconds": optimized.solve_seconds,
+                    "total_seconds": optimized.total_seconds,
+                    "cut_iterations": optimized.iterations,
+                    "cuts_added": optimized.cuts,
+                })
+
+    summaries = {}
+    for name, splits in results.items():
+        summaries[name] = {}
+        for split, rows in splits.items():
+            seed_gains = [row["paired_gain"] for row in rows]
+            summaries[name][split] = {
+                "seed_count": len(rows),
+                "mean_paired_gain": mean(seed_gains),
+                "paired_gain_ci95_across_seeds": interval(seed_gains, args.seed)[1:],
+                "win_rate": sum(value > 1e-9 for value in seed_gains) / len(seed_gains),
+                "mean_solver_seconds": mean(row["solve_seconds"] for row in rows),
+                "mean_absolute_gap": mean(row["absolute_gap"] for row in rows),
+                "all_hours_matched": all(row["hours_match"] for row in rows),
+            }
+    shifted_winner = max(summaries, key=lambda name: summaries[name]["shifted_test"]["mean_paired_gain"])
+    winner_gain = summaries[shifted_winner]["shifted_test"]["mean_paired_gain"]
+    return {
+        "status": "complete",
+        "objective": "expected modeled interceptions",
+        "follower_observes_schedule": True,
+        "seed_values": [args.seed + offset for offset in offsets],
+        "train_days_per_profile": train_days,
+        "test_days_per_profile": test_days,
+        "test_profiles_are_paired": True,
+        "regimes": {name: {"parameters": next(row for row in regimes if row["name"] == name),
+                           "summary": summaries[name], "seed_results": results[name]}
+                    for name in results},
+        "best_shifted_test_regime": shifted_winner if winner_gain > 1e-9 else None,
+        "best_shifted_test_mean_gain": winner_gain,
+    }
+
+
+def matched_interception_report(full, fit, cfg, seed):
+    """Compare modeled interception with greedy at the same checkpoint-hour distribution."""
+    rows = []
+    policy_pairs = {
+        "deterministic_milp_matched_hours": fit.matched["greedy"]["deterministic_milp"],
+        "greedy": fit.policies["greedy"],
+    }
+    for split in ("nominal_test", "shifted_test"):
+        pair = full[split]
+        for revealed in (False, True):
+            observed = {
+                name: observed_choices(fit.matrices, mass, revealed)
+                for name, mass in policy_pairs.items()
+            }
+            daily = {
+                name: [Counter() for _ in pair[0].days]
+                for name in policy_pairs
+            }
+            hours = {}
+            for name, mass in policy_pairs.items():
+                hours[name] = sum(p * len(fit.plans[i]) for i, p in mass.items())
+                for i, probability in mass.items():
+                    sample = pair[observed[name][i]]
+                    for day_index, day in enumerate(sample.days):
+                        result = ledger(Sample((day,), sample.factor), fit.plans[i], cfg)
+                        daily[name][day_index].update(
+                            {key: probability * result[key]
+                             for key in ("delivered", "intercepted", "deferred", "undeparted")}
+                        )
+            gains = [
+                daily["deterministic_milp_matched_hours"][d]["intercepted"]
+                - daily["greedy"][d]["intercepted"]
+                for d in range(len(pair[0].days))
+            ]
+            for metric in ("delivered", "intercepted", "deferred", "undeparted"):
+                rows.append({
+                    "split": split,
+                    "information": "revealed" if revealed else "distribution",
+                    "baseline": "greedy",
+                    "policy": "deterministic_milp_matched_hours",
+                    "checkpoint_hours": hours["deterministic_milp_matched_hours"],
+                    "hours_match_greedy": abs(hours["deterministic_milp_matched_hours"]
+                                              - hours["greedy"]) <= 1e-9,
+                    "outcome": metric,
+                    "greedy_mean": mean(row[metric] for row in daily["greedy"]),
+                    "policy_mean": mean(row[metric]
+                                         for row in daily["deterministic_milp_matched_hours"]),
+                    "interception_gain_over_greedy": mean(gains) if metric == "intercepted" else None,
+                    "interception_gain_ci95": interval(gains, seed)[1:]
+                    if metric == "intercepted" else None,
+                })
     return rows
 
 
@@ -453,7 +665,10 @@ def study(args: argparse.Namespace) -> dict:
                 mean_relative_flow_error=mean(errors), complete_schedule_set=fit.complete, schedules=len(fit.plans),
                 mixed_support=[dict(schedule=sorted(fit.plans[i]), probability=p) for i,p in fit.policies["mixed"].items()],
                 training_milp=fit.solver, sensitivity=sensitivity, selected_alpha=fit.selected_alpha,
+                dobss=dobss_main_family(fit.plans,small["train"],cfg,fit.complete),
                 matched_hours=matched_report(full,fit,cfg),
+                matched_interception_vs_greedy=matched_interception_report(full,fit,cfg,args.seed),
+                interception_first_validation=interception_validation(args,cfg,rules,graph),
                 primary_metric="delivered",inspection_sweep=inspection_sweep(full["shifted_test"],fit,cfg),
                 heldout_replication=replication(args,cfg,rules,graph,fit),
                 shift_sweep=shift_sweep(args,cfg,rules,graph,fit), frontier=frontier(args,cfg,rules,small,full),
