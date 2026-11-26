@@ -15,6 +15,7 @@ python -m checkpoints.run
 python -m checkpoints.study --output results
 python benchmark.py
 python benchmark.py --rows 60 --columns 60 --train 2 --test 2 --time-limit 15
+python -m checkpoints.separating --output separating.json
 python benchmark.py --slots 6 --crews 2 --shift 2 --budget 8 --factor 0.5
 ```
 
@@ -50,6 +51,12 @@ SCIP minimizes the mean daily cut cost. Each day and hour has an independent sou
 The research study writes `matched_interception_vs_greedy` and `interception_first_validation` to `results.json`. The first is the existing delivered-flow MILP scored on interception as a secondary outcome. The second fits a separate interception-first MILP: it maximizes the accounting model's expected interceptions, with each sampled max-flow enforced by lazily separated min-cut constraints. SCIP's relaxation bound and the evaluated schedule give an upper and lower bound. It compares against greedy-on-interception at equal checkpoint-hours across 10 fixed seeds and nominal/shifted held-out scenario mixes, with paired 95% intervals and seed win rates. Inspection rate and detection probability regimes are in `data/research.json`. Interception is calculated from synthetic inspection capacity and an assumed detection probability; it is not an observed seizure rate. Deferral and delivered flow remain separate outcomes. A positive mean with an interval containing zero is weak evidence and must not be presented as a reliable advantage.
 
 The same study includes a finite-schedule Bayesian general-sum DOBSS MILP. Follower types are origin-share profiles with priors; each chooses between adaptive-flow departure and deferral after observing the defender's schedule distribution. The defender payoff is modeled interception minus civilian-delay cost, and follower payoff is delivered flow minus attempt cost and expected interception loss. `results.json` reports the DOBSS value, best pure value, their difference (value of randomization), bounds, and solve time. The pool is enumerated when feasible and otherwise the output is explicitly restricted to the generated schedule pool. The DOBSS construction follows [Paruchuri et al. (AAMAS 2008)](https://u.cs.biu.ac.il/~krauss/data/articles/AAMAS_2008.pdf); its finite-game implementation is cross-checked against enumerated multiple-LP solutions.
+
+The separating benchmark runs four parameter combinations on a 60×60 fictional grid for seeds 42–51. Two use ordinary grid candidates and two add a parallel branch with a pair of serial candidates. Both policies use the same checkpoint-hours and train on the same two days per seed. Nominal and shifted test draws are separate. The JSON retains every paired outcome, solve time, and bound. DOBSS tests a restricted schedule pool and an interception-based response candidate. Its restricted gap does not certify an optimum for the full game.
+
+Both CLIs accept `--network corridor` for geometry verification. The loader checks GraphML SHA-256 and metadata counts, preserves direction and parallel edges, and reports crossing status as unverified. Use the [snapshot recipe and offline fixture commands](docs/OSM_CORRIDOR.md).
+
+The serial-pair case beat greedy on all 10 seeds at two checkpoint-hours. Mean modeled interception gain was 4.20 on nominal days and 5.46 on shifted days. The other three cases tied. The [measured-versus-assumed table](docs/RISK_AND_LIMITS.md#measured-versus-assumed) gives paired intervals, runtimes, and restricted DOBSS results.
 
 ## Offline regional fixture
 

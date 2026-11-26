@@ -19,8 +19,23 @@ python scripts/build_osm.py `
   --bbox 25.5 45.0 31.5 48.6
 ```
 
-The metadata sidecar records source-file SHA-256 hashes, exact bounds, output hash, timestamp, road-class speed defaults, and ODbL attribution. The importer does not add flow capacity, candidate checkpoints, or crossing status. Those are model inputs: flows/capacities must be synthetic and documented, candidate sites remain hypothetical, and every crossing's operational/legal status remains **unverified** until separately curated. OSM geometry does not establish border access or authority.
+The metadata sidecar records source-file SHA-256 hashes, exact bounds, output hash, timestamp, road-class speed defaults, and ODbL attribution. The importer exports road geometry and keeps crossing status **unverified**. OSM geometry does not establish border access or authority.
 
 `osmium` is imported lazily by the PBF-only function. The XML fixture builder and the optimization core do not import it. No OSMnx or GeoPandas dependency is used.
 
-This is a data-build recipe, not evidence that the 10,000-edge corridor experiment has run. The current run reports in `outputs/` use the fictional fixture or synthetic grid; corridor interception optimization, detailed-versus-reduced flow-error measurement, solver time and optimality gap remain to be measured after a local PBF build.
+After building a snapshot, inspect its schema, GraphML SHA-256, direction, and counts:
+
+```powershell
+python benchmark.py --network corridor
+python -m checkpoints.study --network corridor
+```
+
+Both commands require exactly one matching manifest in the snapshot directory. For an offline check with the same manifest format:
+
+```powershell
+python -m scripts.build_osm data/fictional_roads.osm.xml --output corridor-fixture
+python benchmark.py --network corridor --corridor-dir corridor-fixture
+python -m checkpoints.study --network corridor --corridor-dir corridor-fixture
+```
+
+The offline file has four nodes and five directed edges. The corridor commands report geometry and integrity only. Checkpoint optimization and reduction-error measurements use fictional networks. The real PBF recipe has not been run in this checkout.
