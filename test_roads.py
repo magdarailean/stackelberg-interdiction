@@ -1,4 +1,5 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,12 @@ from scripts.build_osm import build
 
 
 class RoadTest(unittest.TestCase):
+    def test_core_import_does_not_load_optional_geo_packages(self):
+        import checkpoints.study  # noqa: F401
+        self.assertNotIn("osmium", sys.modules)
+        self.assertNotIn("osmnx", sys.modules)
+        self.assertNotIn("geopandas", sys.modules)
+
     def test_road_reduction(self):
         from checkpoints.roadcheck import road_check
         cfg = dict(width=4,segments=4,scenarios=4,capacity=10,closure_probability=.01,factor=.3,tolerance=0.)

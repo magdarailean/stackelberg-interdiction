@@ -1,5 +1,7 @@
 # Stackelberg checkpoint benchmark
 
+For the real OSM corridor data recipe and its current status, see [docs/OSM_CORRIDOR.md](docs/OSM_CORRIDOR.md).
+
 The defender commits to one binary site-by-hour schedule across all sampled days. A follower observes the schedule and maximizes delivered flow on each hourly directed graph. Lower daily delivery is better.
 
 ## Run with Python 3.11 (PowerShell)
