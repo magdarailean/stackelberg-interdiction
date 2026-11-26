@@ -66,7 +66,7 @@ def learning_intervals(fit, testing, cfg, seed):
     return output
 
 
-def ledger(sample: Sample, plan: Plan, cfg: dict) -> dict:
+def daily_accounts(sample: Sample, plan: Plan, cfg: dict) -> list:
     daily = []
     for i, day in enumerate(sample.days):
         totals = Counter()
@@ -79,6 +79,11 @@ def ledger(sample: Sample, plan: Plan, cfg: dict) -> dict:
             delivered,deferred = carry_day(day,plan,sample.factor,cfg)
             totals.update(delivered_after_carryover=delivered,day_end_backlog=deferred)
         daily.append(totals)
+    return daily
+
+
+def ledger(sample: Sample, plan: Plan, cfg: dict) -> dict:
+    daily = daily_accounts(sample,plan,cfg)
     return {key: mean(row[key] for row in daily) for key in daily[0]}
 
 
@@ -216,28 +221,33 @@ def flow_accounting(mass, choices, utilities, accounts, revealed):
     return components, rich_components
 
 
-def policy_rows(split, pair, local, values, matrix, accounts, utilities, revealed, cfg, args, fit, oracle):
+def policy_rows(split, pair, local, values, matrix, accounts, utilities, revealed, cfg, args, fit, oracle, deliveries):
     plans = fit.plans
     measured = []
     score_rows = {}
+    delivered_rows = {}
     for name, mass in local.items():
         decision = matrix if name == "hindsight_unattainable" else fit.matrices
         choices = observed_choices(decision, mass, revealed)
         flows = [sum(p*values[i][choices[i]][d] for i,p in mass.items())
                  for d in range(len(pair[0].days))]
         score_rows[name] = flows
+        delivered_rows[name] = [sum(p*deliveries[i][choices[i]][d] for i,p in mass.items())
+                                for d in range(len(flows))]
     for name, mass in local.items():
         decision = matrix if name == "hindsight_unattainable" else fit.matrices
         choices = observed_choices(decision, mass, revealed)
         flows = score_rows[name]
-        gains = [g-f for g,f in zip(score_rows["greedy"], flows)]
+        delivered = delivered_rows[name]
+        gains = [g-f for g,f in zip(delivered_rows["greedy"], delivered)]
         payoffs = utilities if name == "hindsight_unattainable" else fit.utilities
         components, rich_components = flow_accounting(mass, choices, payoffs, accounts, revealed)
         row = dict(split=split, information="revealed" if revealed else "distribution",
                    policy=name, throughput=mean(flows), gain_over_greedy=mean(gains),
                    throughput_ci95=interval(flows, args.seed)[1:],
+                   delivered_ci95=interval(delivered,args.seed)[1:],
                    gain_ci95=interval(gains, args.seed)[1:],
-                   tail_cvar=upper_tail(flows, [1/len(flows)]*len(flows), cfg["tail_alpha"]),
+                   tail_cvar=upper_tail(delivered, [1/len(delivered)]*len(delivered), cfg["tail_alpha"]),
                    checkpoint_hours=sum(p*len(plans[i]) for i,p in mass.items()), **components,
                    **rich_components)
         status, gap, seconds = "baseline", None, None
@@ -283,7 +293,10 @@ def evaluate_split(split, pair, reduced_pair, fit, cfg, args):
         if pure not in active:
             values[pure] = [s.flows(plans[pure]) for s in pair]
             matrix[pure] = list(map(mean, values[pure]))
-    accounts = {i: [ledger(s, plans[i], cfg) for s in pair] for i in values}
+    daily = {i:[daily_accounts(s,plans[i],cfg) for s in pair] for i in values}
+    accounts = {i:[{k:mean(day[k] for day in days) for k in days[0]} for days in profiles]
+                for i,profiles in daily.items()}
+    deliveries = {i:[[day["delivered"] for day in days] for days in profiles] for i,profiles in daily.items()}
     utilities = [[contract_utility(item, cfg) for item in accounts[i]]
                  if i in accounts else [0.] * len(pair) for i in range(len(plans))]
     measured = []
@@ -291,7 +304,7 @@ def evaluate_split(split, pair, reduced_pair, fit, cfg, args):
         if revealed and split.endswith("test"):
             local["hindsight_unattainable"] = {pure: 1.}
         measured.extend(policy_rows(split, pair, local, values, matrix, accounts, utilities, revealed,
-                                    cfg, args, fit, (hindsight, oracle_seconds, oracle_pure_seconds)))
+                                    cfg, args, fit, (hindsight, oracle_seconds, oracle_pure_seconds),deliveries))
     return measured, matrix, hindsight
 
 
@@ -353,8 +366,9 @@ def replication(args, cfg, rules, graph, fit):
         for name in ("centrality","deterministic_milp","mixed","robust_cvar"):
             mass = fit.policies[name]
             sample = pair[response(fit.matrices,mass)]
-            scores[name] = [sum(p*v for p,v in zip(mass.values(),day)) for day in
-                            zip(*(sample.flows(fit.plans[i]) for i in mass))]
+            outcomes = [daily_accounts(sample,fit.plans[i],cfg) for i in mass]
+            scores[name] = [sum(p*row["delivered"] for p,row in zip(mass.values(),day))
+                            for day in zip(*outcomes)]
         diff = [m-c for m,c in zip(scores["deterministic_milp"],scores["centrality"])]
         comparisons.append(dict(seed=seed, centrality_gain=mean(diff), ci95=interval(diff,seed)[1:]))
     return dict(heldout=comparisons, centrality_wins=sum(x["centrality_gain"]>1e-9 for x in comparisons),
@@ -417,22 +431,22 @@ def study(args: argparse.Namespace) -> dict:
         rows, matrix, hindsight = evaluate_split(split, pair, small[split], fit, cfg, args)
         measured.extend(rows)
         if split == "shifted_test":
-            for name, mass in fit.policies.items():
-                curves[name] = learn(fit.matrices, matrix, mass, cfg["learning_rounds"], cfg["learning_prior"], args.seed)
+            round_intervals = learning_intervals(fit,matrix,cfg,args.seed)
+            curves = {name:[point["mean"] for point in points] for name,points in round_intervals.items()}
     for name, source in [("training", fit.game), ("shifted_hindsight", hindsight)]:
         lower = source["lower"] if fit.complete or name == "training" else 0.
         proofs[name] = dict(lower=lower, upper=source["upper"], gap=max(0.,source["upper"]-lower),
                             stopping=source.get("stopping","pool_gap_tolerance"),
                             pool_lower=source["lower"], iterations=source["iterations"])
     sensitivity = sensitivity_report(full, cfg, fit, curves, measured)
-    training_scores = {(r["policy"],r["information"]):r["throughput"] for r in measured if r["split"]=="train"}
+    training_scores = {(r["policy"],r["information"]):r["delivered"] for r in measured if r["split"]=="train"}
     baselines = {(r["split"],r["information"]):r for r in measured if r["policy"]=="none"}
     for row in measured:
         key = row["policy"],row["information"]
-        row["test_minus_train"] = row["throughput"]-training_scores[key] if key in training_scores else None
+        row["test_minus_train"] = row["delivered"]-training_scores[key] if key in training_scores else None
         baseline = baselines[row["split"],row["information"]]
         row.update(shares(row,baseline))
-        row["paired_test_minus_train"] = (row["test_minus_train"]-baseline["throughput"]+
+        row["paired_test_minus_train"] = (row["test_minus_train"]-baseline["delivered"]+
             training_scores["none",row["information"]]) if key in training_scores else None
     return dict(assumptions=dict(fixture=config(), study=cfg, args={k:v for k,v in vars(args).items()
                 if k != "output"}, effective_budget=rules.budget), measured=measured, proofs=proofs,
@@ -445,7 +459,7 @@ def study(args: argparse.Namespace) -> dict:
                 shift_sweep=shift_sweep(args,cfg,rules,graph,fit), frontier=frontier(args,cfg,rules,small,full),
                 learning_shifted_expected_throughput=curves,
                 learning_retention=retention(curves,cfg["retention_fraction"]),
-                learning_round_intervals=learning_intervals(fit,matrix,cfg,args.seed),
+                learning_round_intervals=round_intervals,
                 osm_fixture_scaling=road_check(cfg["road_check"],args.seed),
                 synthetic_subdivision=subdivision_check(full["train"][0].days[0][0], cfg["subdivision_segments"]))
 

@@ -50,6 +50,9 @@ class StudyTest(unittest.TestCase):
             self.assertTrue(result["complete_schedule_set"])
             self.assertAlmostEqual(result["proofs"]["training"]["upper"],result["proofs"]["training"]["lower"])
             for row in result["measured"]:
+                greedy = next(r for r in result["measured"] if r["policy"]=="greedy" and
+                              (r["split"],r["information"])==(row["split"],row["information"]))
+                self.assertAlmostEqual(row["gain_over_greedy"],greedy["delivered"]-row["delivered"])
                 for prefix in ("", "utility_follower_"):
                     self.assertAlmostEqual(row[prefix+"supply"], sum(row[prefix+k] for k in
                                            ("delivered", "intercepted", "deferred", "undeparted")))
