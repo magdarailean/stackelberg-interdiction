@@ -55,3 +55,20 @@ Ten seeds (42–51), 10,005 detailed arcs, nine reduced arcs and two candidate s
 ### Held-out mixed policies
 
 Each grid seed fits a restricted mixed policy and selects the best pure policy across every feasible schedule using training draws only. The two synthetic follower types have equal priors. On independent nominal and shifted draws respectively, each type chooses depart or defer from its expected utility under the frozen distribution. Exact utility ties favor the leader (numerical tolerance 1e-8). A separate DOBSS solve uses the complete training schedule set. Its upper bound minus the restricted incumbent bounds the training utility lost to pool restriction and solver error. There is no corresponding claim of held-out optimality. Intervals resample ten paired seed differences 2,000 times.
+
+### Random candidate layouts
+
+Run `python -m checkpoints.random_layouts` for all twenty consecutive seeds 42–61. Each instance draws 3–6 parallel branches with 2–5 interior nodes per branch, capacities uniformly from 8–24, and six candidate arcs uniformly without replacement. Series interactions can arise by chance. Layouts are retained regardless of whether any interaction occurs. Daily perturbations independently add a uniform integer from −3 to +3 per arc. Four training days and six fresh test days share the layout. Both policies spend two hours in one slot with factor 0.3, detection 0.6 and processing capacity 240 per crew-hour.
+
+The optimizer won 6/20 (30%), tied 12/20 and lost 2/20. Mean held-out interception gain was +0.529 units per day; the paired 95% seed-bootstrap interval was [+0.108, +1.031]. Mean optimizer time was 0.722 s and the largest absolute training gap was zero. This rate is conditional on the synthetic parallel-branch family and the aggregate inspection ledger.
+
+### Held-out grid results
+
+Six-second solve limit, ten paired seeds per setting. Positive utility differences favor the frozen mixed policy. The training gap column is the mean complete-game upper bound minus the restricted incumbent. The pool gap column is the largest absolute SCIP gap across the ten restricted games. Times are mean restricted DOBSS solver seconds and exclude payoff construction and response generation.
+
+| Setting | Held-out mixed minus best training pure [95% CI] | Training gap to global upper bound | Max pool gap | Mean solve time |
+| --- | ---: | ---: | ---: | ---: |
+| Grid, low rate | 0 [0, 0] | 0 | 0 | 0.006 s |
+| Grid, high rate | +26.358 [23.182, 28.723] | 0.00562 | 0.00290 | 0.062 s |
+| Serial pair, two crews | +35.725 [31.153, 39.123] | 0.02893 | 0.00023 | 0.017 s |
+| Serial pair, one crew | 0 [0, 0] | 0 | 0 | 0.005 s |

@@ -101,3 +101,5 @@ Create the Python environment as above, then start the web app from the reposito
 ```
 
 You can also double-click `Start Frontier Command.bat`. Keep its PowerShell window open while playing; stop the local server with Ctrl+C. The app is served at http://127.0.0.1:8765 and saves campaign progress in that browser on the same computer.
+
+Run `python -m checkpoints.random_layouts` for held-out interception gains on 20 unfiltered random candidate layouts. The optimizer won six instances, tied twelve and lost two. The held-out mixed-policy estimates and training gap bounds for the separating grids are in [Risk and limits](docs/RISK_AND_LIMITS.md).
