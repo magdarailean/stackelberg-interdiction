@@ -43,28 +43,29 @@ def manual_plan(data, site_ids, rules):
     schedule = data.get("schedule")
     if schedule is not None:
         if not isinstance(schedule, list):
-            raise ValueError("Programul trebuie să fie o listă de alocări.")
+            raise ValueError("The schedule must be a list of assignments.")
         plan = set()
         for item in schedule:
             if (not isinstance(item, list) or len(item) != 2
                     or not isinstance(item[0], int) or isinstance(item[0], bool)
-                    or item[1] not in site_ids):
-                raise ValueError("Programul selectat nu este valid.")
+                    or not isinstance(item[1], str) or item[1] not in site_ids):
+                raise ValueError("The selected schedule is invalid.")
             plan.add((item[0], site_ids[item[1]]))
         if len(plan) != len(schedule):
-            raise ValueError("Programul conține aceeași alocare de mai multe ori.")
+            raise ValueError("The schedule contains a duplicate assignment.")
     else:
         selected = data.get("selected_ids", [])
-        if not isinstance(selected, list) or len(set(selected)) != len(selected):
-            raise ValueError("Selecția de puncte nu este validă.")
+        if (not isinstance(selected, list) or any(not isinstance(site_id, str) for site_id in selected)
+                or len(set(selected)) != len(selected)):
+            raise ValueError("The site selection is invalid.")
         if any(site_id not in site_ids for site_id in selected):
-            raise ValueError("Selecția conține un punct necunoscut.")
+            raise ValueError("The selection contains an unknown site.")
         if len(selected) > SLOTS:
-            raise ValueError("O tură nu poate depăși numărul de sloturi disponibile.")
+            raise ValueError("The schedule cannot exceed the available time slots.")
         plan = {(slot, site_ids[site_id]) for slot, site_id in enumerate(selected)}
     frozen = frozenset(plan)
     if not rules.feasible(frozen):
-        raise ValueError("Programul nu respectă bugetul, echipele sau durata turei.")
+        raise ValueError("The schedule exceeds the budget, crew limit, or shift constraints.")
     return frozen
 
 
@@ -92,11 +93,11 @@ def simulate(data):
     test_n = int(data.get("test_count", 8))
     limit = float(data.get("time_limit", 5))
     if not 0 <= budget <= SLOTS:
-        raise ValueError(f"Bugetul trebuie să fie între 0 și {SLOTS} ore.")
+        raise ValueError(f"The budget must be between 0 and {SLOTS} hours.")
     if not 1 <= train_n <= 30 or not 1 <= test_n <= 30:
-        raise ValueError("Scenariile trebuie să fie între 1 și 30.")
+        raise ValueError("Each scenario count must be between 1 and 30.")
     if not 0.2 <= limit <= 30:
-        raise ValueError("Timpul solverului trebuie să fie între 0,2 și 30 secunde.")
+        raise ValueError("The solver time limit must be between 0.2 and 30 seconds.")
 
     rules = Rules((sites,) * SLOTS, budget=budget, crews=1, shift=1)
     manual = manual_plan(data, site_ids, rules)
@@ -201,23 +202,25 @@ class Handler(BaseHTTPRequestHandler):
             "/assets/fonts/Marcellus-Regular.ttf": ("assets/fonts/Marcellus-Regular.ttf", "font/ttf"),
         }
         if path not in assets:
-            return self.json({"error": "Pagina nu a fost găsită."}, 404)
+            return self.json({"error": "Page not found."}, 404)
         name, mime = assets[path]
         self.reply((UI / name).read_bytes(), mime)
 
     def do_POST(self):
         if urlparse(self.path).path != "/api/simulate":
-            return self.json({"error": "Rută API necunoscută."}, 404)
+            return self.json({"error": "Unknown API route."}, 404)
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if size > 100_000:
-                raise ValueError("Cererea este prea mare.")
+            if not 0 < size <= 100_000:
+                raise ValueError("The request size is invalid.")
             payload = json.loads(self.rfile.read(size).decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("The request must contain a JSON object.")
             self.json(simulate(payload))
-        except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
+        except (ValueError, TypeError, KeyError, OverflowError) as error:
             self.json({"error": str(error)}, 400)
         except Exception as error:
-            self.json({"error": "Eroare în simulator: " + str(error)}, 500)
+            self.json({"error": "Simulation error: " + str(error)}, 500)
 
     def log_message(self, fmt, *args):
         print("[UI] " + (fmt % args))
@@ -226,12 +229,12 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     url = f"http://{HOST}:{PORT}"
-    print(f"Interfața: {url}  (Ctrl+C pentru oprire)")
+    print(f"Game URL: {url}  (Ctrl+C to stop)")
     try:
         webbrowser.open(url)
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nServer oprit.")
+        print("\nServer stopped.")
     finally:
         server.server_close()
 
