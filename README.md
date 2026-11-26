@@ -45,6 +45,8 @@ SCIP minimizes the mean daily cut cost. Each day and hour has an independent sou
 - Worst-tail delivery averages the highest ceil(10% × day count) daily deliveries, after averaging random schedules within day.
 - Approximate 95% percentile intervals resample entire days 2,000 times. Gain over greedy uses paired daily differences; positive means less delivery. Intervals condition on the fitted schedules, including hindsight selection.
 
+The research study also writes `matched_interception_vs_greedy` to `results.json`. It compares the deterministic MILP with greedy at the same expected checkpoint-hour allocation on nominal and shifted held-out scenarios, and reports delivered, modeled intercepted, deferred, and undeparted flow separately. The interception estimate assumes synthetic inspection capacity and a configured detection probability; it is not an observed seizure rate. The MILP is still fitted to delivered-flow reduction, so this comparison evaluates interception as a secondary outcome rather than claiming an interception-optimal plan. Paired intervals resample held-out days. The `information` field distinguishes a follower responding to the schedule distribution from one responding after seeing the realized schedule.
+
 ## Offline regional fixture
 
 The regional mode uses an invented two-lane diagram with jurisdictions A, B and C. All inputs are generated locally. The snapshot contains no OpenStreetMap or Natural Earth data. OpenStreetMap distributes its database under the ODbL; the fixture has no OSM-derived geometry.

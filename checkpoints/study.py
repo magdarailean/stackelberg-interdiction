@@ -199,6 +199,60 @@ def matched_report(full,fit,cfg):
     return rows
 
 
+def matched_interception_report(full, fit, cfg, seed):
+    """Compare modeled interception with greedy at the same checkpoint-hour distribution."""
+    rows = []
+    policy_pairs = {
+        "deterministic_milp_matched_hours": fit.matched["greedy"]["deterministic_milp"],
+        "greedy": fit.policies["greedy"],
+    }
+    for split in ("nominal_test", "shifted_test"):
+        pair = full[split]
+        for revealed in (False, True):
+            observed = {
+                name: observed_choices(fit.matrices, mass, revealed)
+                for name, mass in policy_pairs.items()
+            }
+            daily = {
+                name: [Counter() for _ in pair[0].days]
+                for name in policy_pairs
+            }
+            hours = {}
+            for name, mass in policy_pairs.items():
+                hours[name] = sum(p * len(fit.plans[i]) for i, p in mass.items())
+                for i, probability in mass.items():
+                    sample = pair[observed[name][i]]
+                    for day_index, day in enumerate(sample.days):
+                        result = ledger(Sample((day,), sample.factor), fit.plans[i], cfg)
+                        daily[name][day_index].update(
+                            {key: probability * result[key]
+                             for key in ("delivered", "intercepted", "deferred", "undeparted")}
+                        )
+            gains = [
+                daily["deterministic_milp_matched_hours"][d]["intercepted"]
+                - daily["greedy"][d]["intercepted"]
+                for d in range(len(pair[0].days))
+            ]
+            for metric in ("delivered", "intercepted", "deferred", "undeparted"):
+                rows.append({
+                    "split": split,
+                    "information": "revealed" if revealed else "distribution",
+                    "baseline": "greedy",
+                    "policy": "deterministic_milp_matched_hours",
+                    "checkpoint_hours": hours["deterministic_milp_matched_hours"],
+                    "hours_match_greedy": abs(hours["deterministic_milp_matched_hours"]
+                                              - hours["greedy"]) <= 1e-9,
+                    "outcome": metric,
+                    "greedy_mean": mean(row[metric] for row in daily["greedy"]),
+                    "policy_mean": mean(row[metric]
+                                         for row in daily["deterministic_milp_matched_hours"]),
+                    "interception_gain_over_greedy": mean(gains) if metric == "intercepted" else None,
+                    "interception_gain_ci95": interval(gains, seed)[1:]
+                    if metric == "intercepted" else None,
+                })
+    return rows
+
+
 def flow_accounting(mass, choices, utilities, accounts, revealed):
     components = Counter()
     rich_choices = observed_choices(utilities, mass, revealed)
@@ -440,6 +494,7 @@ def study(args: argparse.Namespace) -> dict:
                 mixed_support=[dict(schedule=sorted(fit.plans[i]), probability=p) for i,p in fit.policies["mixed"].items()],
                 training_milp=fit.solver, sensitivity=sensitivity, selected_alpha=fit.selected_alpha,
                 matched_hours=matched_report(full,fit,cfg),
+                matched_interception_vs_greedy=matched_interception_report(full,fit,cfg,args.seed),
                 primary_metric="delivered",inspection_sweep=inspection_sweep(full["shifted_test"],fit,cfg),
                 heldout_replication=replication(args,cfg,rules,graph,fit),
                 shift_sweep=shift_sweep(args,cfg,rules,graph,fit), frontier=frontier(args,cfg,rules,small,full),
