@@ -1,0 +1,8 @@
+{
+  "origin": "1",
+  "destination": "4",
+  "subdivisions": 2001,
+  "capacity": {"primary": 16, "secondary": 12, "tertiary": 14},
+  "nominal_terminal_capacity": [10, 20],
+  "shifted_terminal_capacity": [14, 26]
+}

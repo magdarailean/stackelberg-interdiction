@@ -1,27 +1,21 @@
-"""Independent synthetic days, each with two one-hour slots."""
-from dataclasses import dataclass
 from random import Random
 
-from .network import Edge, SITES
+from .follower import Scenario
+from .network import SITES, toy_graph
 
-@dataclass(frozen=True)
-class Slot:
-    """Available units, requested units and closed edges for one hour."""
-    supply: int
-    demand: int
-    closed: tuple[Edge, ...]
+Day = tuple[Scenario, ...]
 
-Day = tuple[Slot, Slot]
 
-def generate(count: int, seed: int, closure_probability: float) -> tuple[Day, ...]:
-    """Sample independent uniform integer supply 12–20 and demand 13–21."""
-    if count < 1 or not 0 <= closure_probability <= 1:
-        raise ValueError("Invalid scenario count or closure probability")
+def generate(count: int, seed: int, closure_probability: float, slots: int = 4) -> tuple[Day, ...]:
+    if min(count, slots) < 1 or not 0 <= closure_probability <= 1:
+        raise ValueError("Invalid toy scenario parameters")
     rng = Random(seed)
 
-    def slot() -> Slot:
-        """Close each interior edge independently for this hour."""
-        return Slot(rng.randint(12, 20), rng.randint(13, 21),
-                    tuple(e for e in SITES if rng.random() < closure_probability))
+    def hour() -> Scenario:
+        graph = toy_graph()
+        graph.add_edge("supply", "S", capacity=rng.randint(12, 20))
+        graph.add_edge("T", "demand", capacity=rng.randint(13, 21))
+        graph.remove_edges_from(e for e in SITES if rng.random() < closure_probability)
+        return Scenario(graph, "supply", "demand")
 
-    return tuple((slot(), slot()) for _ in range(count))
+    return tuple(tuple(hour() for _ in range(slots)) for _ in range(count))

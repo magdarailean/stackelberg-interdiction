@@ -1,0 +1,7 @@
+site_id,from_node,to_node,country,allowed_authorities,status
+a1,a1,a2,A,A,hypothetical
+a4,a4,a5,B,B,hypothetical
+a7,a7,a8,C,C,hypothetical
+b1,b1,b2,A,A,hypothetical
+b4,b4,b5,B,B,hypothetical
+b7,b7,b8,C,C,hypothetical
